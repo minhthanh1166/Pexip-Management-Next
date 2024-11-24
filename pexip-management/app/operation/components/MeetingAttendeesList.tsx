@@ -1,71 +1,70 @@
 "use client";
 
-import { toastNotify } from "@/app/helper";
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
+import { toastNotify } from "@/app/helper/index";
+import { Participant } from "@/app/interfaces";
 
-// Định nghĩa type Participant
-type Participant = {
-  api_url: string;
-  display_name: string;
-  role: string;
-  is_muted: "YES" | "NO";
-  is_video_muted: boolean;
-  is_connected: boolean;
-  local_alias: string;
-  protocol: string;
-  device: string; // Tên thiết bị
+type MeetingAttendeesListProps = {
+  participants: Participant[];
+  handleIndividualMicrophoneMuting: (participant: Participant) => void;
+  handleIndividualVideoMuting: (participant: Participant) => void;
 };
 
-export default function MeetingAttendeesList() {
-  const [attendees, setAttendees] = useState<Participant[]>([]); // Dữ liệu người tham gia
+export default function MeetingAttendeesList({
+  handleIndividualVideoMuting,
+  handleIndividualMicrophoneMuting,
+}: MeetingAttendeesListProps) {
+  const [attendees, setAttendees] = useState([]); // Dữ liệu người tham gia
   const [loading, setLoading] = useState(true); // Trạng thái loading
-  const [error, setError] = useState<string | null>(null); // Lỗi API
+  const [error, setError] = useState(null); // Lỗi khi fetch dữ liệu
+  const [searchQuery, setSearchQuery] = useState(""); // Truy vấn tìm kiếm
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortField, setSortField] = useState("device");
+  const participants = [
+    {
+      api_url: "https://example.com/api/participant/1",
+      display_name: "John Doe",
+      role: "Host",
+      is_muted: "NO",
+      is_video_muted: false,
+      is_connected: true,
+      local_alias: "jdoe",
+      protocol: "WebRTC",
+      device: "iPhone 14",
+    },
+    {
+      api_url: "https://example.com/api/participant/2",
+      display_name: "Jane Smith",
+      role: "Participant",
+      is_muted: "YES",
+      is_video_muted: true,
+      is_connected: false,
+      local_alias: "jsmith",
+      protocol: "SIP",
+      device: "MacBook Pro",
+    },
+    {
+      api_url: "https://example.com/api/participant/3",
+      display_name: "Alice Johnson",
+      role: "Moderator",
+      is_muted: "NO",
+      is_video_muted: true,
+      is_connected: true,
+      local_alias: "alicej",
+      protocol: "WebRTC",
+      device: "Samsung Galaxy S22",
+    },
+  ];
 
-  // Hàm fetch API để lấy dữ liệu attendees
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      toastNotify("Token not found in localStorage", "error");
-      return;
-    }
-
     const fetchAttendees = async () => {
       try {
-        const response = await fetch(
-          "https://10.9.30.16/api/client/v2/conferences/LabMeeting/participants?",
-          {
-            headers: {
-              Accept: "*/*",
-              "Accept-Encoding": "gzip, deflate, br",
-              Connection: "keep-alive",
-              token: token as string,
-            },
-          }
-        );
+        const mappedAttendees = participants.map((participant) => ({
+          ...participant,
+          device: simplifyDeviceName(participant.device || "Unknown Device"),
+        }));
 
-        if (!response.ok) {
-          throw new Error(`HTTP Error: ${response.status}`);
-        }
-
-        const responseBody = await response.json();
-
-        // Ánh xạ dữ liệu từ API vào Participant[]
-        const mappedAttendees: Participant[] = responseBody.result.map(
-          (participant: any) => ({
-            api_url: participant.api_url,
-            display_name: participant.display_name || "Unknown",
-            role: participant.role || "Participant",
-            is_muted: participant.is_muted || "NO",
-            is_video_muted: participant.is_video_muted || false,
-            is_connected: participant.has_media || false,
-            local_alias: participant.local_alias || "N/A",
-            protocol: participant.protocol || "Unknown",
-            device: simplifyDeviceName(participant.vendor || "Unknown Device"),
-          })
-        );
-
-        setAttendees(mappedAttendees);
+        setAttendees(mappedAttendees); // Cập nhật attendees
         setLoading(false);
       } catch (error) {
         console.error("Error fetching attendees:", error);
@@ -74,11 +73,31 @@ export default function MeetingAttendeesList() {
       }
     };
 
-    // Thiết lập interval để cập nhật real-time
-    const interval = setInterval(fetchAttendees, 1000); // Gọi lại mỗi 5 giây
-
-    return () => clearInterval(interval); // Dọn dẹp interval khi component unmount
+    fetchAttendees();
   }, []);
+
+  const handleSort = (field: string) => {
+    const order = sortOrder === "asc" ? "desc" : "asc";
+    setSortOrder(order);
+    setSortField(field);
+
+    const sorted = [...attendees].sort((a, b) => {
+      if (order === "asc") {
+        return a[field].localeCompare(b[field]);
+      } else {
+        return b[field].localeCompare(a[field]);
+      }
+    });
+
+    setAttendees(sorted);
+  };
+
+  // Lọc attendees dựa trên searchQuery
+  const filteredAttendees = attendees.filter(
+    (attendee) =>
+      attendee.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      attendee.local_alias.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) {
     return <p className="text-center text-blue-600">Loading attendees...</p>;
@@ -88,16 +107,33 @@ export default function MeetingAttendeesList() {
     return <p className="text-center text-red-600">{error}</p>;
   }
 
-  // UI hiển thị danh sách attendees
   return (
     <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
       {/* Header */}
       <div className="border-b border-gray-300 p-4">
-        <h3 className="text-lg font-semibold">Meeting Attendees List</h3>
+        <div className="flex justify-between pt-2">
+          <h3 className="text-lg font-semibold">Meeting Attendees List</h3>
+          <input
+            className="border border-gray-300 rounded px-2 py-1 focus:outline-none"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            type="text"
+            placeholder="Search by name or alias..."
+          />
+        </div>
       </div>
 
       {/* Table */}
       <div className="p-4 w-full overflow-x-auto">
+        {/* Phim control all */}
+        <div className="flex justify-end mb-2">
+          <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Mute All
+          </button>
+          <button className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ml-2">
+            Disconnect All
+          </button>
+        </div>
         <table className="w-full table-auto border-collapse border border-gray-300">
           <thead className="bg-gray-200">
             <tr>
@@ -119,13 +155,25 @@ export default function MeetingAttendeesList() {
               <th className="border border-gray-300 px-4 py-2 text-left">
                 Device
               </th>
-              <th className="border border-gray-300 px-4 py-2 text-left">
-                Actions
+              <th className="border border-gray-300 px-4 py-2 text-left flex justify-between">
+                <span>Actions</span>
+                {/* tạo 2 mũi tên lên xuống để soft */}
+                <div>
+                  <button onClick={() => handleSort("device")}>
+                    <i
+                      className={`fa-solid ${
+                        sortOrder === "asc"
+                          ? "fa-chevron-up"
+                          : "fa-chevron-down"
+                      }`}
+                    ></i>
+                  </button>
+                </div>
               </th>
             </tr>
           </thead>
           <tbody>
-            {attendees.map((attendee) => (
+            {filteredAttendees.map((attendee) => (
               <tr key={attendee.api_url}>
                 <td className="border border-gray-300 px-4 py-2">
                   {attendee.display_name}
@@ -157,24 +205,26 @@ export default function MeetingAttendeesList() {
                   <div className="flex gap-2">
                     {/* Mic Button */}
                     <button
+                      onClick={() => handleIndividualMicrophoneMuting(attendee)}
                       className={`rounded ${
                         attendee.is_muted === "YES"
-                          ? "bg-gray-800 px-3 text-white"
-                          : "bg-blue-500 px-2 text-white"
+                          ? "bg-gray-800 px-2 text-white"
+                          : "bg-blue-500 px-3 text-white"
                       } hover:bg-blue-600`}
                       title={attendee.is_muted === "YES" ? "Unmute" : "Mute"}
                     >
                       <i
                         className={`fa-solid ${
                           attendee.is_muted === "YES"
-                            ? "fa-microphone"
-                            : "fa-microphone-slash"
+                            ? "fa-microphone-slash"
+                            : "fa-microphone"
                         }`}
                       ></i>
                     </button>
 
                     {/* Video Button */}
                     <button
+                      onClick={() => handleIndividualVideoMuting(attendee)}
                       className={`p-2 rounded ${
                         attendee.is_video_muted
                           ? "bg-gray-800 text-white"
@@ -205,7 +255,7 @@ export default function MeetingAttendeesList() {
   );
 }
 
-function simplifyDeviceName(vendor: string): string {
+function simplifyDeviceName(vendor) {
   if (vendor.includes("Windows")) return "Windows";
   if (vendor.includes("Macintosh")) return "MacOS";
   if (vendor.includes("Android")) return "Android";

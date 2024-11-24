@@ -8,6 +8,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
+import { toastNotify } from '@/app/helper';
 
 // Đăng ký các thành phần cần thiết của Chart.js
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -34,6 +35,7 @@ export default function PlatformLiveView() {
         setLoading(false);
       } catch (err) {
         setError('Failed to fetch worker VM data.');
+        toastNotify('Failed to fetch worker VM data.', 'error');
         setLoading(false);
       }
     };
