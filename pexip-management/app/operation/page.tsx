@@ -42,7 +42,7 @@ export default function OperatorPage() {
     isVideoMuted: false,
     inCall: false,
     error: null,
-    participants: {},
+    participants: [],
   });
 
   const initializePexRTC = () => {
@@ -89,11 +89,36 @@ export default function OperatorPage() {
       }
     };
 
+    // pexRTCInstance.onParticipantUpdate = (participant) => {
+    //   console.log("Participant updated:", participant);
+    //   setState((prev) => {
+    //     const updatedParticipants = { ...prev.participants, [participant.uuid]: participant };
+    //     console.log("Updated participants list:", Object.values(updatedParticipants));
+    //     return { ...prev, participants: updatedParticipants };
+    //   });
+    // };
+
+    // pexRTCInstance.onParticipantDelete = (participant) => {
+    //   console.log("Participant deleted:", participant);
+    //   setState((prev) => {
+    //     const updatedParticipants = { ...prev.participants };
+    //     delete updatedParticipants[participant.uuid];
+    //     console.log("Updated participants list:", Object.values(updatedParticipants));
+    //     return { ...prev, participants: updatedParticipants };
+    //   });
+    // }
+
     pexRTCInstance.onParticipantUpdate = (participant) => {
       console.log("Participant updated:", participant);
       setState((prev) => {
-        const updatedParticipants = { ...prev.participants, [participant.uuid]: participant };
-        console.log("Updated participants list:", Object.values(updatedParticipants));
+        const updatedParticipants = prev.participants.map((p) =>
+          p.uuid === participant.uuid ? participant : p
+        );
+        // Nếu không tìm thấy participant, thêm mới
+        if (!updatedParticipants.some((p) => p.uuid === participant.uuid)) {
+          updatedParticipants.push(participant);
+        }
+        console.log("Updated participants list:", updatedParticipants);
         return { ...prev, participants: updatedParticipants };
       });
     };
@@ -101,16 +126,16 @@ export default function OperatorPage() {
     pexRTCInstance.onParticipantDelete = (participant) => {
       console.log("Participant deleted:", participant);
       setState((prev) => {
-        const updatedParticipants = { ...prev.participants };
-        delete updatedParticipants[participant.uuid];
-        console.log("Updated participants list:", Object.values(updatedParticipants));
+        const updatedParticipants = prev.participants.filter(
+          (p) => p.uuid !== participant.uuid
+        );
+        console.log("Updated participants list:", updatedParticipants);
         return { ...prev, participants: updatedParticipants };
       });
-    }
+    };
 
     return pexRTCInstance;
   };
-
 
   // Initialize and cleanup
   useEffect(() => {
@@ -182,12 +207,71 @@ export default function OperatorPage() {
   };
 
   const handleIndividualMicrophoneMuting = (participant: Participant) => {
-    console.log("Muting microphone for participant:", participant);
-  }
+    if (!pexRTC.current) {
+      console.error("PexRTC is not initialized.");
+      return;
+    }
+
+    const isMuted = participant.is_muted === "YES";
+    pexRTC.current.setParticipantMute(participant.uuid, !isMuted);
+    console.log(
+      `${isMuted ? "Unmuting" : "Muting"} microphone for participant:`,
+      participant.display_name
+    );
+
+    setState((prev) => ({
+      ...prev,
+      participants: prev.participants.map((p) =>
+        p.uuid === participant.uuid
+          ? { ...p, is_muted: isMuted ? "NO" : "YES" }
+          : p
+      ),
+    }));
+  };
 
   const handleIndividualVideoMuting = (participant: Participant) => {
-    console.log("Muting video for participant:", participant);
-  }
+    if (!pexRTC.current) {
+      console.error("PexRTC is not initialized.");
+      return;
+    }
+
+    const isVideoMuted = participant.is_video_muted;
+    if (isVideoMuted) {
+      pexRTC.current.videoUnmuted(participant.uuid);
+    } else {
+      pexRTC.current.videoMuted(participant.uuid);
+    }
+    console.log(
+      `${isVideoMuted ? "Unmuting" : "Muting"} video for participant:`,
+      participant.display_name
+    );
+
+    setState((prev) => ({
+      ...prev,
+      participants: prev.participants.map((p) =>
+        p.uuid === participant.uuid
+          ? { ...p, is_video_muted: !isVideoMuted }
+          : p
+      ),
+    }));
+  };
+
+  const handleIndividualDisconnect = (participant: Participant) => {
+    if (!pexRTC.current) {
+      console.error("PexRTC is not initialized.");
+      return;
+    }
+
+    console.log("Disconnecting participant:", participant.display_name);
+    pexRTC.current.disconnectParticipant(participant.uuid);
+
+    setState((prev) => ({
+      ...prev,
+      participants: prev.participants.filter(
+        (p) => p.uuid !== participant.uuid
+      ),
+    }));
+  };
 
   return (
     <div>
@@ -219,8 +303,11 @@ export default function OperatorPage() {
           <div className="mt-2 lg:mt-0">
             <MeetingAttendeesList
               participants={state.participants}
-              handleIndividualMicrophoneMuting={handleIndividualMicrophoneMuting}
+              handleIndividualMicrophoneMuting={
+                handleIndividualMicrophoneMuting
+              }
               handleIndividualVideoMuting={handleIndividualVideoMuting}
+              handleIndividualDisconnect={handleIndividualDisconnect}
             />
           </div>
         </div>
