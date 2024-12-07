@@ -4,5 +4,6 @@ import ListPeople from "./ListPeople"
 import MeetingAttendeesList from "./MeetingAttendeesList"
 import CallConference from "./CallConference"
 import PlatformLiveView from "./PlatformLiveView"
+import MeetingList from "./MeetingList"
 
-export { Navbar, ListPeople, CallConference, MeetingAttendeesList, PlatformLiveView}
+export { Navbar, ListPeople, CallConference, MeetingAttendeesList, PlatformLiveView, MeetingList}

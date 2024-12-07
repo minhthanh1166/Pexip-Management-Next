@@ -34,7 +34,7 @@ export default function Navbar() {
             Pricing
           </a>
           <a href="#about" className="hover:text-gray-300">
-            About
+            Meeting List
           </a>
         </div>
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import '@/app/operation/styles/layout.css';
+import { useToggleMenu } from "@/app/useContext/toggleMenuProvider";
 
 interface Person {
   id: string;
@@ -15,6 +16,8 @@ export default function ListPeople() {
     { id: "3", name: "Alice Johnson" },
     { id: "4", name: "Bob Brown" },
   ]);
+
+  const { toggleMenu } = useToggleMenu();
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -41,22 +44,26 @@ export default function ListPeople() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 w-full h-full">
-      <h3 className="text-lg font-semibold mb-4">List People</h3>
-      <div>
-        {people.map((person, index) => (
-          <div
-            key={person.id}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragOver={handleDragOver}
-            onDrop={() => handleDrop(index)}
-            className="p-4 bg-gray-100 rounded-lg shadow-md mb-2 hover:bg-gray-200 cursor-grab"
-          >
-            {person.name}
+    <>
+      {toggleMenu.isListPeople && (
+        <div className="bg-white rounded-2xl shadow-lg p-6 w-full h-full">
+          <h3 className="text-lg font-semibold mb-4">List People</h3>
+          <div>
+            {people.map((person, index) => (
+              <div
+                key={person.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(index)}
+                className="p-4 bg-gray-100 rounded-lg shadow-md mb-2 hover:bg-gray-200 cursor-grab"
+              >
+                {person.name}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -1,3 +1,5 @@
+import MeetingList from './meetingList';
+
 import Participant from "./participant";
 
-export type { Participant };
+export type { Participant, MeetingList };

@@ -8,7 +8,7 @@ export async function GET() {
   const authToken = Buffer.from(`${username}:${password}`).toString('base64');
 
   try {
-    const response = await fetch('https://10.9.30.10/api/admin/configuration/v1/conference/', {
+    const response = await fetch('https://10.9.30.10/api/admin/status/v1/conference/', {
       method: 'GET',
       headers: {
         Authorization: `Basic ${authToken}`,
