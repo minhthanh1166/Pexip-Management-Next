@@ -55,6 +55,12 @@ export default function OperatorPage() {
     isAutoMuteCamera: false,
   });
 
+  const [screenShared, setScreenShared] = useState<boolean>(false);
+  const [presentationStream, setPresentationStream] = useState<boolean>();
+  const [presentationInMain, setPresentationInMain] = useState<any>();
+  const [remoteStream, setRemoteStream] = useState();
+  const [localStream, setLocalStream] = useState();
+
   const { toggleMenu } = useToggleMenu();
 
   const initializePexRTC = () => {
@@ -73,6 +79,7 @@ export default function OperatorPage() {
       if (stream && selfViewVideoRef.current) {
         try {
           selfViewVideoRef.current.srcObject = stream;
+          setLocalStream(stream);
         } catch (error) {
           toastNotify(`Error setting local stream: ${error}`, "error");
         }
@@ -88,6 +95,7 @@ export default function OperatorPage() {
         }
       }
       setState((prev) => ({ ...prev, inCall: true }));
+      setRemoteStream(stream);
     };
 
     pexRTCInstance.onDisconnect = (reason) => {
@@ -141,6 +149,21 @@ export default function OperatorPage() {
       });
     };
 
+    pexRTCInstance.onScreenshareConnected = (stream) => {
+      setPresentationStream(stream);
+    }
+
+    pexRTCInstance.onScreenshareStopped = (reason) => {
+      setPresentationStream(null);
+    }
+
+    pexRTCInstance.PexRTCStatistics = (state) => {
+      console.log("PexRTC state:", state);
+    }
+
+    console.log("PexRTC media devices:", pexRTCInstance.getMediaStatistics());
+
+
     return pexRTCInstance;
   };
 
@@ -190,27 +213,37 @@ export default function OperatorPage() {
 
   // Toggle microphone mute
   const toggleMicMute = () => {
-    setState((prev) => {
-      const isMicMuted = !prev.isMicMuted;
-      if (selfViewVideoRef.current?.srcObject instanceof MediaStream) {
-        selfViewVideoRef.current.srcObject
-          .getAudioTracks()
-          .forEach((track) => (track.enabled = !isMicMuted));
-      }
-      return { ...prev, isMicMuted };
-    });
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
+    if (state.participants.length > 0) {
+      const muted = pexRTC.current.muteAudio(!state.isMicMuted);
+      setState((prev) => {
+        return { ...prev, isMicMuted: muted };
+      });
+
+      setState((prev: any) => {
+        const updatedParticipants = prev.participants.map((p) =>
+          p.uuid === pexRTC.current.uuid ? { ...p, is_muted: muted === "YES" ? true : false } : p
+        );
+        return { ...prev, participants: updatedParticipants };
+      });
+    }
   };
 
   // Toggle video mute
   const toggleVideoMute = () => {
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
+
+    const muted = pexRTC.current.muteVideo(!state.isVideoMuted);
     setState((prev) => {
-      const isVideoMuted = !prev.isVideoMuted;
-      if (selfViewVideoRef.current?.srcObject instanceof MediaStream) {
-        selfViewVideoRef.current.srcObject
-          .getVideoTracks()
-          .forEach((track) => (track.enabled = !isVideoMuted));
-      }
-      return { ...prev, isVideoMuted };
+      return { ...prev, isVideoMuted: muted };
     });
   };
 
@@ -219,6 +252,11 @@ export default function OperatorPage() {
     if (!pexRTC.current) {
       toastNotify("PexRTC is not initialized.", "error");
       return;
+    }
+
+    if (state.conference_alias === "") {
+      toastNotify("Please enter the conference alias.", "error");
+      return
     }
 
     if (!state.inCall) {
@@ -263,6 +301,11 @@ export default function OperatorPage() {
       return;
     }
 
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
     const isVideoMuted = participant.is_video_muted;
     if (isVideoMuted) {
       pexRTC.current.videoUnmuted(participant.uuid);
@@ -301,6 +344,11 @@ export default function OperatorPage() {
   };
 
   const handleMuteMicrophonesAll = () => {
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return
+    }
+
     const action = window.confirm(
       "Are you sure you want to toggle all microphones?"
     )
@@ -351,6 +399,12 @@ export default function OperatorPage() {
   };
 
   const handleMuteCameraAll = () => {
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
+
     const action = window.confirm(
       "Are you sure you want to toggle all cameras?"
     )
@@ -397,6 +451,12 @@ export default function OperatorPage() {
   };
 
   const handleAutoMuteMic = (event) => {
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
+
     setState((prev) => {
       return {
         ...prev,
@@ -406,6 +466,11 @@ export default function OperatorPage() {
   };
 
   const handleAutoMuteCamera = (event) => {
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
     setState((prev) => {
       return {
         ...prev,
@@ -414,7 +479,19 @@ export default function OperatorPage() {
     });
   };
 
-  const handleSendMessage = () => { };
+  const handleSendMessage = () => {
+    if (!pexRTC.current) {
+      toastNotify("PexRTC is not initialized.", "error");
+      return;
+    }
+
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
+    // send message
+  };
 
   const handleMeetingList = (name: string, pin: string) => {
     setState((prev) => ({
@@ -437,59 +514,100 @@ export default function OperatorPage() {
     // disconnect all participants
     if (pexRTC.current) {
       pexRTC.current.disconnectAll();
+      // clear participants list
+      setState((prev) => ({ ...prev, participants: [] }));
     }
   };
 
+  useEffect(() => {
+    if (!presentationStream) {
+      if (presentationInMain != null) setPresentationInMain(null);
+    } else {
+      if (presentationInMain == null) {
+        setPresentationInMain(true);
+      }
+    }
+  }, [
+    presentationInMain,
+    presentationStream
+  ])
+
+  const handleScreenShare = () => {
+    if (!pexRTC.current) {
+      toastNotify("PexRTC is not initialized.", "error");
+      return;
+    }
+
+    if (state.inCall === false) {
+      toastNotify("Please start the call first.", "error");
+      return;
+    }
+
+    if (screenShared) {
+      pexRTC.current.present(null);
+    } else {
+      pexRTC.current.present('screen');
+    }
+
+    setScreenShared(!screenShared);
+  }
+
   return (
 
-      <div>
-        <div className="bg-gray-100 flex flex-col md:flex-row gap-2 p-3">
-          {/* Left Column */}
-          <div className={`${toggleMenu.isWorkerNodes ? 'flex-1' : toggleMenu.isMeetingList ? 'flex-1' : null }`}>
-            <div className="mb-2">
-              <MeetingList
-                handleMeetingList={handleMeetingList}
-                handleDisconnectAll={handleDisconnectAll}
-              />
-            </div>
-            <PlatformLiveView />
+    <div>
+      <div className="bg-gray-100 flex flex-col md:flex-row gap-2 p-3">
+        {/* Left Column */}
+        <div className={`${toggleMenu.isWorkerNodes ? 'flex-1' : toggleMenu.isMeetingList ? 'flex-1' : null}`}>
+          <div className="mb-2">
+            <MeetingList
+              handleMeetingList={handleMeetingList}
+              handleDisconnectAll={handleDisconnectAll}
+              // truyền vào state để hiển thị thông tin
+              participants={state.participants}
+            />
           </div>
-          {/* Center Column */}
-          <div className="flex-[3] h-full">
-            <div className={`${toggleMenu.isListPeople ? 'lg:flex' : null} mb-2`}>
-              <div className={`${toggleMenu.isListPeople ? 'lg:w-2/3' : null}  mb-2 lg:mb-0`}>
-                <CallConference
-                  selfViewVideoRef={selfViewVideoRef}
-                  farEndVideoRef={farEndVideoRef}
-                  isMicMuted={state.isMicMuted}
-                  isVideoMuted={state.isVideoMuted}
-                  inCall={state.inCall}
-                  toggleMicMute={toggleMicMute}
-                  toggleVideoMute={toggleVideoMute}
-                  toggleCall={toggleCall}
-                  handleSendMessage={handleSendMessage}
-                />
-              </div>
-              <div className="lg:w-1/3 lg:pl-2">
-                <ListPeople />
-              </div>
-            </div>
-            <div className="mt-2 lg:mt-0">
-              <MeetingAttendeesList
-                participants={state.participants}
-                handleIndividualMicrophoneMuting={
-                  handleIndividualMicrophoneMuting
-                }
-                handleIndividualVideoMuting={handleIndividualVideoMuting}
-                handleIndividualDisconnect={handleIndividualDisconnect}
-                handleMuteMicrophonesAll={handleMuteMicrophonesAll}
-                handleMuteCameraAll={handleMuteCameraAll}
-                handleAutoMuteMic={handleAutoMuteMic}
-                handleAutoMuteCamera={handleAutoMuteCamera}
+          <PlatformLiveView />
+        </div>
+        {/* Center Column */}
+        <div className="flex-[3] h-full">
+          <div className={`${toggleMenu.isListPeople ? 'lg:flex' : null} mb-2`}>
+            <div className={`${toggleMenu.isListPeople ? 'lg:w-2/3' : null}  mb-2 lg:mb-0`}>
+              <CallConference
+                handleScreenShare={handleScreenShare}
+                selfViewVideoRef={selfViewVideoRef}
+                farEndVideoRef={farEndVideoRef}
+                isMicMuted={state.isMicMuted}
+                isVideoMuted={state.isVideoMuted}
+                inCall={state.inCall}
+                toggleMicMute={toggleMicMute}
+                toggleVideoMute={toggleVideoMute}
+                toggleCall={toggleCall}
+                handleSendMessage={handleSendMessage}
+                localStream={localStream}
+                presentationStream={presentationStream}
+                remoteStream={remoteStream}
               />
             </div>
+            <div className="lg:w-1/3 lg:pl-2">
+              <ListPeople />
+            </div>
+          </div>
+          <div className="mt-2 lg:mt-0">
+            <MeetingAttendeesList
+              participants={state.participants}
+              handleIndividualMicrophoneMuting={
+                handleIndividualMicrophoneMuting
+              }
+              handleIndividualVideoMuting={handleIndividualVideoMuting}
+              handleIndividualDisconnect={handleIndividualDisconnect}
+              handleMuteMicrophonesAll={handleMuteMicrophonesAll}
+              handleMuteCameraAll={handleMuteCameraAll}
+              handleAutoMuteMic={handleAutoMuteMic}
+              handleAutoMuteCamera={handleAutoMuteCamera}
+            />
           </div>
         </div>
       </div>
+    </div>
   );
 }

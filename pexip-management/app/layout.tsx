@@ -43,6 +43,7 @@ export default function RootLayout({
         {children}
 
         <Script src="/library/pexrtc.js" strategy="beforeInteractive" />
+        {/* <Script src="https://10.9.30.16/static/webrtc/js/pexrtc.js" strategy="beforeInteractive" /> */}
       </body>
     </html>
   );

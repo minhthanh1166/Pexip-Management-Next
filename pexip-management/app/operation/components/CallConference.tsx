@@ -1,31 +1,74 @@
 "use client";
 
+import { useState, useCallback, useRef, useEffect } from "react";
+import "@/app/operation/styles/conference.css";
 import { useToggleMenu } from "@/app/useContext/toggleMenuProvider";
-import { useState } from "react";
 
+type VideoProps = {
+  className?: string;
+  autoPlay?: boolean;
+  playsInline?: boolean;
+  muted?: boolean;
+  onClick?: (event: any) => void;
+  mediaStream?: MediaStream;
+};
 
+const Video = (props: VideoProps) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Set media stream only when it's changed
+  useEffect(() => {
+    if (videoRef.current && props.mediaStream) {
+      videoRef.current.srcObject = props.mediaStream;
+    }
+  }, [props.mediaStream]);
+
+  return (
+    <video
+      ref={videoRef}
+      className={props.className}
+      autoPlay
+      playsInline
+      muted={props.muted}
+      onClick={props.onClick}
+    />
+  );
+};
 
 export default function CallConferenceTest({
-  selfViewVideoRef,
-  farEndVideoRef,
-  isMicMuted,
-  isVideoMuted,
-  inCall,
+  localStream,
+  remoteStream,
+  presentationStream,
   toggleCall,
   toggleMicMute,
   toggleVideoMute,
   handleSendMessage,
+  handleScreenShare,
+  isMicMuted,
+  isVideoMuted,
+  inCall,
+  selfViewVideoRef,
+  farEndVideoRef,
 }) {
-  const [error, setError] = useState<any>(null);
+  const [presentationInMain, setPresentationInMain] = useState<boolean>(false);
   const [showChat, setShowChat] = useState<boolean>(false);
   const [chat, setChat] = useState<string>("");
   const { toggleMenu, setToggleMenu } = useToggleMenu();
 
- // console.log("Test: " + toggleMenu.isMeetingList + " " + toggleMenu.isWorkerNodes + " " +  toggleMenu.isListPeople + " " +  toggleMenu.isMeetingAttendesslist)
+  // Tối ưu hóa việc chuyển video chính
+  const switchVideos = useCallback((event) => {
+    if (event.target.classList.contains("presentation-video")) {
+      setPresentationInMain(true); // Hiển thị presentation video chính
+    } else {
+      setPresentationInMain(false); // Hiển thị remote stream chính
+    }
+  }, []);
+
 
   return (
-    <div className="relative">
+    <div className="relative w-full h-full">
       <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 p-6 w-full h-full">
+        {/* Header */}
         <div className="flex justify-between">
           <h3 className="text-lg font-semibold mb-4">Call Conference</h3>
           <button onClick={() => setToggleMenu((prev) => ({
@@ -35,29 +78,47 @@ export default function CallConferenceTest({
             <i className="fa fa-bars"></i>
           </button>
         </div>
+
+        {/* Video Conference */}
         <div className="relative flex-grow bg-gray-900 rounded-lg overflow-hidden">
-          <div className="w-full h-full">
-            <video
-              ref={farEndVideoRef}
-              className="w-full lg:h-[500px] object-cover"
-              autoPlay
-              playsInline
-            ></video>
-          </div>
-          <div className="absolute bottom-6 right-6 w-28 h-14 lg:w-36 lg:h-20 border border-gray-700 bg-black rounded-lg overflow-hidden">
-            <video
-              ref={selfViewVideoRef}
-              className="w-full h-full object-cover"
-              autoPlay
-              muted
-              playsInline
-            ></video>
+          <div className={`Conference w-full h-full relative flex aspect-video`}>
+            {presentationInMain ? (
+              <Video
+                mediaStream={presentationStream}
+                className="w-full h-full rounded-lg object-contain bg-black cursor-pointer"
+                onClick={switchVideos}
+              />
+            ) : (
+              <>
+                <Video
+                  mediaStream={remoteStream}
+                  className="w-full h-full rounded-lg object-contain bg-black"
+                  onClick={switchVideos}
+                />
+                {localStream && (
+                  <Video
+                    mediaStream={localStream}
+                    className="absolute w-1/4 bottom-4 right-4 rounded-lg aspect-video object-cover z-10"
+                    muted
+                  />
+                )}
+                {presentationStream && (
+                  <Video
+                    className="absolute w-1/4 top-4 left-4 rounded-lg m-4 aspect-video object-cover cursor-pointer z-10 presentation-video"
+                    mediaStream={presentationStream}
+                    onClick={switchVideos}
+                  />
+                )}
+              </>
+            )}
           </div>
         </div>
-        <div className="mt-2 flex justify-center gap-6">
+
+        {/* Call Controls */}
+        <div className="mt-4 flex justify-center gap-6">
           <button
             onClick={toggleCall}
-            className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center shadow-md transition ${inCall
+            className={`w-10 h-10 rounded-full shadow-md transition ${inCall
               ? "bg-red-600 hover:bg-red-700 text-white"
               : "bg-green-500 hover:bg-green-600 text-white"
               }`}
@@ -66,36 +127,33 @@ export default function CallConferenceTest({
           </button>
           <button
             onClick={toggleMicMute}
-            className="w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center shadow-md bg-gray-800 hover:bg-gray-700 text-white transition"
+            className="w-10 h-10 rounded-full shadow-md bg-gray-800 hover:bg-gray-700 text-white"
           >
-            <i
-              className={`fas ${isMicMuted ? "fa-microphone-slash" : "fa-microphone"
-                }`}
-            ></i>
+            <i className={`fas ${isMicMuted ? "fa-microphone-slash" : "fa-microphone"}`}></i>
           </button>
           <button
             onClick={toggleVideoMute}
-            className="w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center shadow-md bg-gray-800 hover:bg-gray-700 text-white transition"
+            className="w-10 h-10 rounded-full shadow-md bg-gray-800 hover:bg-gray-700 text-white"
           >
-            <i
-              className={`fas ${isVideoMuted ? "fa-video-slash" : "fa-video"}`}
-            ></i>
+            <i className={`fas ${isVideoMuted ? "fa-video-slash" : "fa-video"}`}></i>
           </button>
-          {/* button chat */}
           <button
-            onClick={() => setShowChat(!showChat)}
-            className="w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center shadow-md bg-gray-800 hover:bg-gray-700 text-white transition"
+            onClick={() => setShowChat((prev) => !prev)}
+            className="w-10 h-10 rounded-full shadow-md bg-gray-800 hover:bg-gray-700 text-white"
           >
             <i className="fas fa-comment"></i>
           </button>
+          <button
+            onClick={handleScreenShare}
+            className="w-10 h-10 rounded-full shadow-md bg-gray-800 hover:bg-gray-700 text-white"
+          >
+            <i className="fas fa-desktop"></i>
+          </button>
         </div>
-        {error && (
-          <p className="mt-4 text-red-500 text-center">Error: {error}</p>
-        )}
       </div>
-      <div>
-        {/* show dialog chat message top */}
-        {showChat && (
+
+      {/* Chat Box */}
+      {showChat && (
           <div className="fixed top-0 lg:right-0 p-4 m-4 bg-gray-200 rounded-lg shadow-lg lg:w-full max-w-[400px] sm:max-w-[350px] lg:max-w-[300px]">
             <h3 className="text-lg font-semibold">Chat</h3>
             <div className="mt-2 overflow-auto">
@@ -133,7 +191,6 @@ export default function CallConferenceTest({
             </div>
           </div>
         )}
-      </div>
       <div>
         {toggleMenu.toggle && (
           <div className="absolute top-0 lg:right-10 p-4 m-4 bg-gray-200 rounded-lg shadow-lg lg:w-full max-w-[400px] sm:max-w-[350px] lg:max-w-[300px]">

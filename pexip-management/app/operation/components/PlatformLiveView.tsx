@@ -33,7 +33,7 @@ export default function PlatformLiveView() {
       } catch (err) {
         setError("Failed to fetch worker VM data.");
         toastNotify("Failed to fetch worker VM data.", "error");
-        setLoading(false);
+        setLoading(true);
       }
     };
 
