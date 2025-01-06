@@ -205,9 +205,7 @@ export default function MeetingList({
             </div>
           </div>
         </div>
-
       )}
-
     </>
   );
 }
