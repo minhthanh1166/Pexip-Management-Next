@@ -50,9 +50,7 @@ export default function MeetingList({
     };
     fetchMeetingStatus();
   }, []);
-
   
-
   return (
     <>
       {toggleMenu.isMeetingList && (
